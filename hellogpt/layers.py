@@ -11,10 +11,10 @@ class Skip(nn.Module):
         super().__init__()
 
         self.layer = layer
-        self.proj = nn.Linear(n_in, n_out)
+        self.resid_proj = nn.Linear(n_in, n_out)
     
     def forward(self, x: torch.Tensor):
-        return x + self.proj(self.layer(x))
+        return x + self.resid_proj(self.layer(x))
 
 class FeedForward(nn.Module):
     """ A single feed-forward layer followed by an activation function (GELU, here)."""

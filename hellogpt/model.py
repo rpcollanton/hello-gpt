@@ -1,17 +1,32 @@
 from .layers import Block
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def layer_init(m: nn.Module):
+    if isinstance(m, nn.Linear):
+        nn.init.normal_(m.weight, mean=0.0, std=0.02)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
+    elif isinstance(m, nn.Embedding):
+        nn.init.normal_(m.weight, mean=0.0, std=0.02)
+    elif isinstance(m, nn.LayerNorm):
+        nn.init.zeros_(m.bias)
+        nn.init.ones_(m.weight)
+
 class GPT(nn.Module):
+    """ A small GPT model that is focused on demonstrating the mathematical structure of the model, rather than absolute speed or flexibility. """
+
     def __init__(self, n_layer, vocab_size, n_embd, n_head, block_size):
         super().__init__()
 
-        # parameters
+        # hyperparameters
         self.block_size = block_size
+        self.n_layer = n_layer
 
-        # layers
+        # define layers
         self.transformer = nn.ModuleDict(dict(
             embd_tok = nn.Embedding(vocab_size, n_embd),
             embd_pos = nn.Embedding(vocab_size, n_embd),
@@ -20,7 +35,22 @@ class GPT(nn.Module):
         ))
         self.lm_head = nn.Linear(n_embd, vocab_size, bias=False)
 
+        self.initialize_weights()
+        print(f"Initialized GPT model with {self.numparam()/1e3:0.2f}K parameters")
+
+    def numparam(self):
+        n = sum(p.numel() for p in self.transformer.parameters())
+        n += sum(p.numel() for p in self.lm_head.parameters())
+        return n
+    
+    def initialize_weights(self):
+        self.apply(layer_init)
+        for name, param in self.named_parameters():
+            if "resid_proj" in name:
+                nn.init.normal_(param, mean=0.0, std=0.02/math.sqrt(2 * self.n_layer))
+
     def forward(self, idx: torch.Tensor, tgt: torch.Tensor = None):
+        """ Computes the predicted next token for each of the T tokens in each of the B batches. Attention internal to each batch, and causal (backwards-looking only). """
         B, T = idx.size()
         
         assert T <= self.block_size, f"Can only support context lengths up to block_size={self.block_size}, but got a context length of {T}"
