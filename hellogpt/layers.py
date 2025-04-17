@@ -9,6 +9,7 @@ class Skip(nn.Module):
 
     def __init__(self, layer: nn.Module, n_in: int, n_out: int):
         super().__init__()
+
         self.layer = layer
         self.proj = nn.Linear(n_in, n_out)
     
@@ -20,15 +21,19 @@ class FeedForward(nn.Module):
     
     def __init__(self, n_in, n_out):
         super().__init__()
+
         self.lin = nn.Linear(n_in, n_out)
+        self.act = nn.GELU()
 
     def forward(self, x: torch.Tensor):
-        return nn.GELU(self.lin(x))
+        return self.act(self.lin(x))
    
 class MultiHeadAttention(nn.Module):
     """ Implements vectorized causal multi-head self-attention. """
 
     def __init__(self, n_embd, n_head, block_size):
+        super().__init__()
+
         assert n_embd % n_head == 0
 
         # parameters
@@ -48,7 +53,7 @@ class MultiHeadAttention(nn.Module):
 
         # self.representation has shape (B, T, 3*C)
         # q, k, v have shapes (B, T, C)
-        q, k, v = torch.split(self.representation(x), 3, dim=-1)
+        q, k, v = torch.split(self.representation(x), self.n_embd, dim=-1)
 
         # reshape in this way to get (batch, heads, context/time, head_size)
         # don't do view(B, nh, T, C//nh) directly because this will split up the context dimension in a weird way!
@@ -79,14 +84,16 @@ class MultiHeadAttention(nn.Module):
 class Block(nn.Module):
     """ Single transformer layer, following the architecture described in Radford et al., 2018. """
     
-    def __init__(self, n_embd: int, n_head: int):
+    def __init__(self, n_embd: int, n_head: int, block_size: int):
+        super().__init__()
+
         assert n_embd % n_head == 0
         head_size = n_embd // n_head
 
         # Layers, with the appropriate skip/residual connections
-        self.attn = Skip(MultiHeadAttention(n_embd, n_head), n_embd, n_embd)
+        self.attn = Skip(MultiHeadAttention(n_embd, n_head, block_size), n_embd, n_embd)
         self.ln1 = nn.LayerNorm(n_embd)
-        self.ffwd = Skip(FeedForward(n_embd, n_embd*4), n_embd*4, n_embd), 
+        self.ffwd = Skip(FeedForward(n_embd, n_embd*4), n_embd*4, n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
 
     def forward(self, x: torch.Tensor):

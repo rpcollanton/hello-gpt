@@ -1,4 +1,4 @@
-from layers import Block
+from .layers import Block
 
 import torch
 import torch.nn as nn
@@ -15,7 +15,7 @@ class GPT(nn.Module):
         self.transformer = nn.ModuleDict(dict(
             embd_tok = nn.Embedding(vocab_size, n_embd),
             embd_pos = nn.Embedding(vocab_size, n_embd),
-            blocks = nn.Sequential(*[Block(n_embd, n_head) for _ in n_layer]),
+            blocks = nn.Sequential(*[Block(n_embd, n_head, block_size) for _ in range(n_layer)]),
             ln = nn.LayerNorm(n_embd)
         ))
         self.lm_head = nn.Linear(n_embd, vocab_size, bias=False)
@@ -47,3 +47,29 @@ class GPT(nn.Module):
         
         return logits, loss
     
+    def generate(self, sequence, max_new_tokens):
+        """
+        Accept a sequence of size (B, T). T is the length of the embedded sequence, and B is the number of samples to generate.
+        Generate a new sequence of length max_new_tokens by progressively sampling probabilities.
+        """
+        if sequence.dim == 1:
+            sequence = sequence.view(1,-1)
+        elif sequence.dim > 2: 
+            raise ValueError(f"Inputted sequence tensor has unsupported number of dimensions {sequence.dim}.")
+        
+        for _ in range(max_new_tokens):
+            # truncate sequence to block_size
+            seq_cond = sequence if sequence.size(1) <= self.block_size else sequence[:, -self.block_size:]
+            
+            # forward through the model and generate probabilities for the next token 
+            logits, _ = self(seq_cond)
+            logits = logits[:,-1,:] # (All batches, last token, all characters)
+            probs = F.softmax(logits,dim=-1)
+
+            # sample probability to get next token
+            idx_next = torch.multinomial(probs, num_samples=1)
+
+            # append this to sequence and move on
+            sequence = torch.cat((sequence, idx_next), dim=1)
+        
+        return sequence
