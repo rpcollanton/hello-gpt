@@ -1,4 +1,5 @@
 from .layers import Block
+from .utilities import Config
 
 import math
 import torch
@@ -6,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 def layer_init(m: nn.Module):
+    """ Initialization, based on the GPT-2 paper -- Radford et al. (2018). """
     if isinstance(m, nn.Linear):
         nn.init.normal_(m.weight, mean=0.0, std=0.02)
         if m.bias is not None:
@@ -44,7 +46,10 @@ class GPT(nn.Module):
         return n
     
     def initialize_weights(self):
+        # apply to all modules and their submodules
         self.apply(layer_init)
+
+        # search for the resid_proj 
         for name, param in self.named_parameters():
             if "resid_proj" in name:
                 nn.init.normal_(param, mean=0.0, std=0.02/math.sqrt(2 * self.n_layer))
