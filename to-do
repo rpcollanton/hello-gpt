@@ -1,0 +1,10 @@
+Next:
+
+- write generalized routines for training
+- experiment with saving/loading states
+- start small projects -- shakespeare, names, math, arxiv, see here for more datasets: https://github.com/niderhoff/nlp-datasets 
+- clean up generation interface, write clean examples in ipynb
+- write byte pair encoder, other encoders/tokenizers (see karpathy videos, mingpt, and https://github.com/openai/gpt-2/blob/master/src/encoder.py)
+- write other rotary position embedding (RoPE), and seek other inspiration from deepseek!
+- try to load OpenAI parameters
+- incorporate changes for speed/parallelization. Use baby GPU :)
