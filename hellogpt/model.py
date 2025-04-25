@@ -9,13 +9,55 @@ import torch.nn.functional as F
 
 
 class GPT(nn.Module):
+
+    @staticmethod 
+    def get_default_config() -> Config:
+        cfg = Config(
+            model_type = None,
+            n_embd = None,
+            n_layer = None, 
+            n_head = None,
+            vocab_size = None,
+            block_size = None,
+            p_drop_embd = 0.1,
+            p_drop_attn = 0.1,
+            p_drop_resid = 0.1
+        )
+        return cfg
+    
+    @classmethod
+    def from_pretrained(cls, model_type: str):
+        # only allow model types for which parameters are available
+        assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
+
+        # create a GPT model 
+        cfg = cls.get_default_config()
+        cfg.model_type = model_type
+        cfg.vocab_size = 50257 # OpenAI vocabulary size
+        cfg.block_size = 1024  # OpenAI context/block size
+
+        model = GPT(cfg)
+        sd = model.state_dict()
+        
+        # load a Hugging Face model
+        from transformers import GPT2LMHeadModel
+        model_hf = GPT2LMHeadModel.from_pretrained(model_type)
+        sd_hf = model_hf.state_dict()
+
+        # transfer parameters from hugging face model to our GPT!
+        # uh oh -- are they named and organized right to support this?
+        # they are not!! we are going to have to reorganize to match the huggingface/openAI organization :')
+
+        
+
+    
     """ A small GPT model that is focused on demonstrating the mathematical structure of the model, rather than absolute speed or flexibility. """
 
     def __init__(self, cfg: Config):
         super().__init__()
 
         # hyperparameters
-        self._validate_config(cfg)
+        self._process_config(cfg)
         self.cfg = cfg
 
         # define layers
@@ -30,23 +72,49 @@ class GPT(nn.Module):
 
         self._initialize_weights()
         print(f"Initialized GPT model with {self.numparam()/1e3:0.2f}K parameters")
-
+  
     @staticmethod
-    def _validate_config(cfg: Config):
+    def _process_config(cfg: Config):
         d = cfg.to_dict()
         keys = [
-            "vocab_size", 
+            "model_type",
             "n_embd", 
             "n_layer", 
-            "n_head", 
+            "n_head",
+            "vocab_size", 
             "block_size", 
             "p_drop_embd", 
             "p_drop_attn", 
             "p_drop_resid"
         ]
         for k in keys:
-            if k not in d.keys():
+            if k not in d:
                 raise ValueError(f"Invalid Config object given to GPT: missing key {k}")
+            
+        # check if type is given and make sure that the model parameters were not also givne
+        type_given = cfg.model_type is not None
+        params_given = (cfg.n_embd is not None) or (cfg.n_layer is not None) or (cfg.n_head is not None)
+        assert type_given ^ params_given, "Must only specify a model_type or model parameters, not both."
+        
+        if type_given:
+            cfg.merge_from_dict({
+                    # names follow the huggingface naming conventions
+                    # GPT-1
+                    'openai-gpt':   dict(n_layer=12, n_head=12, n_embd=768),  # 117M params
+                    # GPT-2 configs
+                    'gpt2':         dict(n_layer=12, n_head=12, n_embd=768),  # 124M params
+                    'gpt2-medium':  dict(n_layer=24, n_head=16, n_embd=1024), # 350M params
+                    'gpt2-large':   dict(n_layer=36, n_head=20, n_embd=1280), # 774M params
+                    'gpt2-xl':      dict(n_layer=48, n_head=25, n_embd=1600), # 1558M params
+                    # Gophers
+                    'gopher-44m':   dict(n_layer=8, n_head=16, n_embd=512),
+                    # (there are a number more...)
+                    # Andrej made these tiny models up
+                    'gpt-mini':     dict(n_layer=6, n_head=6, n_embd=192),
+                    'gpt-micro':    dict(n_layer=4, n_head=4, n_embd=128),
+                    'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=48),
+            }[cfg.model_type])
+
         return 
 
     @staticmethod
