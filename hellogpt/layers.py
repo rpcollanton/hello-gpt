@@ -49,7 +49,7 @@ class MultiHeadAttention(nn.Module):
         self.drop_attn = nn.Dropout(cfg.p_drop_attn)
 
         # causal mask -- attention only goes to the left 
-        self.register_buffer("mask", torch.tril(torch.ones(self.block_size, self.block_size)).view(1, 1, self.block_size, self.block_size))
+        self.register_buffer("mask", torch.tril(torch.ones(self.block_size, self.block_size, dtype=bool)).view(1, 1, self.block_size, self.block_size))
 
     def forward(self, x: torch.Tensor):
         B, T, C = x.size() # batch, context/time, embedding/features (n_embd)
@@ -93,9 +93,6 @@ class Block(nn.Module):
     
     def __init__(self, cfg: Config):
         super().__init__()
-
-        assert cfg.n_embd % cfg.n_head == 0
-        head_size = cfg.n_embd // cfg.n_head
 
         # Layers, with the appropriate skip/residual connections
         self.attn   = Skip(MultiHeadAttention(cfg), cfg.n_embd, cfg.n_embd, cfg.p_drop_resid)

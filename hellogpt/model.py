@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 
 class GPT(nn.Module):
+    """ A small GPT model that is focused on demonstrating the mathematical structure of the model, rather than absolute speed or flexibility. """
 
     @staticmethod 
     def get_default_config() -> Config:
@@ -47,11 +48,6 @@ class GPT(nn.Module):
         # transfer parameters from hugging face model to our GPT!
         # uh oh -- are they named and organized right to support this?
         # they are not!! we are going to have to reorganize to match the huggingface/openAI organization :')
-
-        
-
-    
-    """ A small GPT model that is focused on demonstrating the mathematical structure of the model, rather than absolute speed or flexibility. """
 
     def __init__(self, cfg: Config):
         super().__init__()
