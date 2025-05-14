@@ -20,7 +20,7 @@ class Skip(Model):
     def call(self, x: tf.Tensor):
         return x + self.drop_resid(self.resid_proj(x))
 
-class MultiHeadAttention(Layer):
+class MultiHeadAttention(Model):
     """ Causal multi-head self-attention in vectorized form. """
     def __init__(self, cfg: Config):
         super().__init__()
@@ -86,7 +86,7 @@ class MultiHeadAttention(Layer):
 
         return out
         
-    class Block(Layer):
+    class Block(Model):
         """ A single transformer block. """
 
         def __init__(self, cfg: Config):
