@@ -61,9 +61,9 @@ class MultiHeadAttention(nn.Module):
 
         # reshape in this way to get (batch, heads, context/time, head_size)
         # don't do view(B, nh, T, C//nh) directly because this will split up the context dimension in a weird way!
-        q.view(B, T, self.n_head, self.head_size).transpose(1,2)
-        k.view(B, T, self.n_head, self.head_size).transpose(1,2)
-        v.view(B, T, self.n_head, self.head_size).transpose(1,2)
+        q = q.view(B, T, self.n_head, self.head_size).transpose(1,2)
+        k = k.view(B, T, self.n_head, self.head_size).transpose(1,2)
+        v = v.view(B, T, self.n_head, self.head_size).transpose(1,2)
 
         # compute scaled query-key similarity
         # scaled to number of elements from k being collapsed into single element of similarity
@@ -72,7 +72,7 @@ class MultiHeadAttention(nn.Module):
 
         # mask it to ensure information only flows forward (attention is only given to past tokens)
         # broadcast across B/nh dimensions
-        similarity = similarity.masked_fill(self.mask[:,:,:T,:T], float('-inf'))
+        similarity = similarity.masked_fill(self.mask[:,:,:T,:T]==0, float('-inf'))
 
         # apply soft max to convert to a set of weights on past tokens (with weights on future tokens equal to zero, thanks to the mask)
         weights = F.softmax(similarity, dim=-1)
@@ -84,7 +84,7 @@ class MultiHeadAttention(nn.Module):
         out = weights @ v
         
         # concatenate output of all heads back into (B,T,C)
-        out = out.transpose(1,2).view(B, T, C)
+        out = out.transpose(1,2).contiguous().view(B, T, C)
 
         return out
 

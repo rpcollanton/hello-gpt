@@ -6,8 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-
 class GPT(nn.Module):
     """ A small GPT model that is focused on demonstrating the mathematical structure of the model, rather than absolute speed or flexibility. """
 
@@ -48,7 +46,7 @@ class GPT(nn.Module):
         # transfer parameters from hugging face model to our GPT!
         # uh oh -- are they named and organized right to support this?
         # they are not!! we are going to have to reorganize to match the huggingface/openAI organization :')
-
+    
     def __init__(self, cfg: Config):
         super().__init__()
 
@@ -59,7 +57,7 @@ class GPT(nn.Module):
         # define layers
         self.transformer = nn.ModuleDict(dict(
             embd_tok = nn.Embedding(cfg.vocab_size, cfg.n_embd),
-            embd_pos = nn.Embedding(cfg.vocab_size, cfg.n_embd),
+            embd_pos = nn.Embedding(cfg.block_size, cfg.n_embd),
             drop_embd = nn.Dropout(cfg.p_drop_embd),
             blocks = nn.Sequential(*[Block(cfg) for _ in range(cfg.n_layer)]),
             ln = nn.LayerNorm(cfg.n_embd)
@@ -135,6 +133,12 @@ class GPT(nn.Module):
             if "resid_proj" in name:
                 nn.init.normal_(param, mean=0.0, std=0.02/math.sqrt(2 * self.cfg.n_layer))
 
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load(self, path): 
+        self.load_state_dict(torch.load(path, weights_only=True))
+
     def numparam(self):
         n = sum(p.numel() for p in self.transformer.parameters())
         n += sum(p.numel() for p in self.lm_head.parameters())
@@ -146,7 +150,7 @@ class GPT(nn.Module):
         
         assert T <= self.cfg.block_size, f"Can only support context lengths up to block_size={self.cfg.block_size}, but got a context length of {T}"
         if tgt is not None:
-            assert tgt.numel() == B, f"Target size {tgt.numel()} does not match number of inputted batches {B}."
+            assert tgt.size() == idx.size(), f"Target size {tgt.size()} does not match index size {idx.size()}."
 
         # position and token embedding, outputting a (B, T, n_embd) tensor
         pos = torch.arange(0,T,dtype=torch.long).view(1,T)
@@ -168,14 +172,14 @@ class GPT(nn.Module):
         
         return logits, loss
     
-    def generate(self, sequence, max_new_tokens):
+    def generate(self, sequence: torch.Tensor, max_new_tokens: int):
         """
         Accept a sequence of size (B, T). T is the length of the embedded sequence, and B is the number of samples to generate.
         Generate a new sequence of length max_new_tokens by progressively sampling probabilities.
         """
-        if sequence.dim == 1:
+        if sequence.dim() == 1:
             sequence = sequence.view(1,-1)
-        elif sequence.dim > 2: 
+        elif sequence.dim() > 2: 
             raise ValueError(f"Inputted sequence tensor has unsupported number of dimensions {sequence.dim}.")
         
         for _ in range(max_new_tokens):
