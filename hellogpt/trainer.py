@@ -14,6 +14,7 @@ class Trainer:
         cfg.max_iter = 10000
         cfg.learning_rate = 1E-3
         cfg.loss_threshold = None
+        cfg.device = 'auto'
         return cfg
     
     def __init__(self, cfg: Config, model: nn.Module, dataset: Dataset):
@@ -22,6 +23,14 @@ class Trainer:
         self.dataset: Dataset   = dataset
         self.optimizer          = None
         self.callbacks          = defaultdict(list)
+
+        # determine the device we'll train on
+        if cfg.device == 'auto':
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = cfg.device
+        self.model = self.model.to(self.device)
+        print("Running on device:", self.device)
 
         # configuration parameters
         self.max_iter: int = cfg.max_iter
@@ -58,6 +67,7 @@ class Trainer:
             except StopIteration:
                 dataiterator = iter(dataloader)
                 x,y = next(dataiterator)
+            x, y = x.to(self.device), y.to(self.device)
             
             # forward pass
             _, self.loss = self.model(x,y)

@@ -153,7 +153,7 @@ class GPT(nn.Module):
             assert tgt.size() == idx.size(), f"Target size {tgt.size()} does not match index size {idx.size()}."
 
         # position and token embedding, outputting a (B, T, n_embd) tensor
-        pos = torch.arange(0,T,dtype=torch.long).view(1,T)
+        pos = torch.arange(0, T, dtype=torch.long, device=idx.device).view(1,T)
         te = self.transformer.embd_tok(idx)
         pe = self.transformer.embd_pos(pos)
         x = self.transformer.drop_embd(te + pe)

@@ -17,7 +17,7 @@ def cb_generate(t: Trainer):
         t.model.eval()
         with torch.no_grad():
             prompt = "My oh my, what do we have here? Could it be?"
-            x = torch.tensor(t.dataset.encode(prompt))
+            x = torch.tensor(t.dataset.encode(prompt)).to(t.device)
             y = model.generate(x, 500).view(-1)
             response = t.dataset.decode(y)
             print(response)
