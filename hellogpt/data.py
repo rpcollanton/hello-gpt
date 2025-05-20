@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from .utilities import Config
+from .tokenizer import CharTokenizer
 
 class CharDataset(Dataset):
 
@@ -13,7 +14,7 @@ class CharDataset(Dataset):
     def __init__(self, cfg: Config, data: str):
         self.config: Config = cfg
         self.data = data
-        self.tokenizer = CharDataset()
+        self.tokenizer = CharTokenizer()
         self.tokenizer.train(data)
     
     def __len__(self):

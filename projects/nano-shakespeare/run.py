@@ -52,7 +52,7 @@ if os.path.exists(checkpoint_file):
     model.load(checkpoint_file)
 
 # build trainer
-cfg.trainer.max_iter = 500
+cfg.trainer.max_iter = 10
 trainer = Trainer(cfg.trainer, model, dataset)
 trainer.add_callback("on_batch_end", cb_print_iter)
 trainer.add_callback("on_batch_end", cb_generate)
@@ -61,4 +61,4 @@ trainer.add_callback("on_batch_end", cb_generate)
 trainer.run()
 
 # save model
-model.save("gpt-nano-shakespeare-checkpoint.pt")
+model.save(checkpoint_file)

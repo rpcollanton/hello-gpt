@@ -5,30 +5,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class Skip(nn.Module):
-    """ Implements a skip connection by evaluating a layer and projecting it back into the residual pathway. """
-
-    def __init__(self, layer: nn.Module, n_in: int, n_out: int, p_drop: float):
-        super().__init__()
-
-        self.layer = layer
-        self.resid_proj = nn.Linear(n_in, n_out)
-        self.drop_resid = nn.Dropout(p_drop)
-    
-    def forward(self, x: torch.Tensor):
-        return x + self.drop_resid(self.resid_proj(self.layer(x)))
-
 class FeedForward(nn.Module):
-    """ A single feed-forward layer followed by an activation function (GELU, here)."""
+    """ A single feed-forward layer with an activation and projection."""
     
-    def __init__(self, n_in, n_out):
+    def __init__(self, cfg: Config):
         super().__init__()
 
-        self.lin = nn.Linear(n_in, n_out)
+        self.lin = nn.Linear(cfg.n_embd, cfg.n_embd*4)
         self.act = nn.GELU()
+        self.proj = nn.Linear(cfg.n_embd*4, cfg.n_embd)
+        self.drop_resid = nn.Dropout(cfg.p_drop_resid)
 
     def forward(self, x: torch.Tensor):
-        return self.act(self.lin(x))
+        x = self.act(self.lin(x))
+        x = self.drop_resid(self.proj(x))
+        return x
    
 class MultiHeadAttention(nn.Module):
     """ Implements vectorized causal multi-head self-attention. """
@@ -44,9 +35,13 @@ class MultiHeadAttention(nn.Module):
         self.n_head         = cfg.n_head
         self.head_size      = cfg.n_embd // cfg.n_head
 
-        # layers
+        # query, key, value projections for all heads in one layer
         self.representation = nn.Linear(self.n_embd, 3*self.n_embd)
+        # regularization
         self.drop_attn = nn.Dropout(cfg.p_drop_attn)
+        self.drop_resid = nn.Dropout(cfg.p_drop_resid)
+        # projection back into residual pathway
+        self.proj = nn.Linear(cfg.n_embd, cfg.n_embd)
 
         # causal mask -- attention only goes to tokens in the past 
         self.register_buffer("mask", torch.tril(torch.ones(self.block_size, self.block_size, dtype=bool)).view(1, 1, self.block_size, self.block_size))
@@ -86,6 +81,9 @@ class MultiHeadAttention(nn.Module):
         # concatenate output of all heads back into (B,T,C)
         out = out.transpose(1,2).contiguous().view(B, T, C)
 
+        # project onto residual pathway, apply dropout
+        out = self.drop_resid(self.proj(out))
+
         return out
 
 class Block(nn.Module):
@@ -95,15 +93,13 @@ class Block(nn.Module):
         super().__init__()
 
         # Layers, with the appropriate skip/residual connections
-        self.attn   = Skip(MultiHeadAttention(cfg), cfg.n_embd, cfg.n_embd, cfg.p_drop_resid)
         self.ln1    = nn.LayerNorm(cfg.n_embd)
-        self.ffwd   = Skip(FeedForward(cfg.n_embd, cfg.n_embd*4), cfg.n_embd*4, cfg.n_embd, cfg.p_drop_resid)
+        self.attn   = MultiHeadAttention(cfg)
         self.ln2    = nn.LayerNorm(cfg.n_embd)
+        self.ffwd   = FeedForward(cfg)       
 
     def forward(self, x: torch.Tensor):
-        x = self.attn(x)
-        x = self.ln1(x)
-        x = self.ffwd(x)
-        x = self.ln2(x)
+        x = x + self.attn(self.ln1(x))
+        x = x + self.ffwd(self.ln2(x))
         return x
 
