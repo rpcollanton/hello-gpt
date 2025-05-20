@@ -48,7 +48,7 @@ class MultiHeadAttention(nn.Module):
         self.representation = nn.Linear(self.n_embd, 3*self.n_embd)
         self.drop_attn = nn.Dropout(cfg.p_drop_attn)
 
-        # causal mask -- attention only goes to the left 
+        # causal mask -- attention only goes to tokens in the past 
         self.register_buffer("mask", torch.tril(torch.ones(self.block_size, self.block_size, dtype=bool)).view(1, 1, self.block_size, self.block_size))
 
     def forward(self, x: torch.Tensor):
