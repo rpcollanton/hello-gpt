@@ -47,14 +47,14 @@ class BasicBPETokenizer(Tokenizer):
         self.vocab = {}
 
     def train(self, text, vocab_size, verbose=False):
-        assert vocab_size >= 256, "Desired vocab size can not be less than the number of 8-bit integers."
+        assert vocab_size >= 256, "Desired vocab size cannot be less than the number of 8-bit integers."
         n_merges = vocab_size - 256
 
         tokens = text.encode("utf-8")
         tokens = list(map(int,tokens))
-        _, bp_merges, bp_vocab = BasicBPETokenizer._bpe(tokens,n_merges)
-        
-        print(bp_merges)
+        _, bp_merges = BasicBPETokenizer._bpe(tokens,n_merges,verbose)
+        bp_vocab = {v: k for k,v in bp_merges.items()}
+
         def expand(idx: int):
             if idx in self.vocab:
                 return self.vocab[idx]
@@ -90,21 +90,22 @@ class BasicBPETokenizer(Tokenizer):
         return text
     
     @staticmethod
-    def _bpe(tokens, n_merges: int):
+    def _bpe(tokens, n_merges: int, verbose: bool = False):
         out = copy(tokens)
         new_id = max(max(out), 256)
         bp_merges = {}
-        bp_vocab = {}
         i = 0
         while i < n_merges:
             counts = BasicBPETokenizer._get_pair_counts(out)
             pair = max(counts, key=counts.get)
             out = BasicBPETokenizer._merge(out, pair, new_id)
             bp_merges[pair] = new_id
-            bp_vocab[new_id] = pair
+            if verbose:
+                print(f"merge {i}/{n_merges}: {pair} -> {new_id} ({pair}) had {counts[pair]} occurrences")
             i+=1
             new_id+=1
-        return out, bp_merges, bp_vocab
+
+        return out, bp_merges
 
 
     @staticmethod
@@ -118,6 +119,9 @@ class BasicBPETokenizer(Tokenizer):
                 out.insert(idx, new_id)
             idx+=1
         return out
+    
+    # @staticmethod
+    # def _merge_all(tokens, merges):
     
     @staticmethod
     def _get_pair_counts(tokens):

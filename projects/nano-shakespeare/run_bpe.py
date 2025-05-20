@@ -9,6 +9,6 @@ with open('input.txt', 'r') as f:
     text = f.read()
 
 tokenizer = BasicBPETokenizer()
-tokenizer.train(text, 264, verbose=True)
+tokenizer.train(text, 258, verbose=True)
 
 print(tokenizer.decode(tokenizer.encode(text)) == text)
