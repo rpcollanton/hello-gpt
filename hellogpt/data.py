@@ -13,11 +13,8 @@ class CharDataset(Dataset):
     def __init__(self, cfg: Config, data: str):
         self.config: Config = cfg
         self.data = data
-
-        chars = sorted(list(set(data)))
-        self.stoi = {ch: i for i,ch in enumerate(chars)}
-        self.itos = {i: ch for i,ch in enumerate(chars)}
-        self.vocab_size = len(chars)
+        self.tokenizer = CharDataset()
+        self.tokenizer.train(data)
     
     def __len__(self):
         return len(self.data) - self.config.block_size
@@ -31,14 +28,13 @@ class CharDataset(Dataset):
         return x,y
 
     def encode(self, text):
-        return [self.stoi[s] for s in text]
+        return self.tokenizer.encode(text)
     
     def decode(self, indices):
-        return ''.join([self.itos[int(i)] for i in indices])
-
+        return self.tokenizer.decode(indices)
 
     def get_vocab_size(self):
-        return self.vocab_size
+        return self.tokenizer.vocab_size
     
     def get_block_size(self):
         return self.config.block_size
