@@ -35,7 +35,7 @@ class GPT(nn.Module):
         cfg.vocab_size = 50257 # OpenAI vocabulary size
         cfg.block_size = 1024  # OpenAI context/block size
 
-        model = GPT(cfg)
+        model = cls(cfg)
         sd = model.state_dict()
         
         # load a Hugging Face model
@@ -43,10 +43,34 @@ class GPT(nn.Module):
         model_hf = GPT2LMHeadModel.from_pretrained(model_type)
         sd_hf = model_hf.state_dict()
 
-        # transfer parameters from hugging face model to our GPT!
-        # uh oh -- are they named and organized right to support this?
-        # they are not!! we are going to have to reorganize to match the huggingface/openAI organization :')
-    
+        # we have some different names here
+        keymap = {
+            "transformer.h": "transformer.blocks",
+            "transformer.wte": "transformer.embd_tok",
+            "transformer.wpe": "transformer.embd_pos", 
+        }
+        # we have to transpose to accommodate the different layer types (conv1d vs linear??)
+        transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
+        
+        for k_hf in sd_hf.keys():
+            # rename the key
+            k = k_hf
+            for s_hf, s in keymap.items():
+                if s_hf in k:
+                    k = k.replace(s_hf, s)
+            # check if it needs to be transposed
+            if any(k.endswith(w) for w in transposed):
+                assert sd_hf[k_hf].shape[::-1] == sd[k].shape
+                with torch.no_grad():
+                    sd[k].copy_(sd_hf[k_hf].t())
+            # otherwise just copy
+            else:
+                assert sd_hf[k_hf].shape == sd[k].shape
+                with torch.no_grad():
+                    sd[k].copy_(sd_hf[k_hf])
+            
+        return model
+
     def __init__(self, cfg: Config):
         super().__init__()
 
@@ -60,7 +84,7 @@ class GPT(nn.Module):
             embd_pos = nn.Embedding(cfg.block_size, cfg.n_embd),
             drop_embd = nn.Dropout(cfg.p_drop_embd),
             blocks = nn.Sequential(*[Block(cfg) for _ in range(cfg.n_layer)]),
-            ln = nn.LayerNorm(cfg.n_embd)
+            ln_f = nn.LayerNorm(cfg.n_embd)
         ))
         self.lm_head = nn.Linear(cfg.n_embd, cfg.vocab_size, bias=False)
 
@@ -141,7 +165,6 @@ class GPT(nn.Module):
 
     def numparam(self):
         n = sum(p.numel() for p in self.transformer.parameters())
-        n += sum(p.numel() for p in self.lm_head.parameters())
         return n
     
     def forward(self, idx: torch.Tensor, tgt: torch.Tensor = None):
@@ -160,7 +183,7 @@ class GPT(nn.Module):
 
         # pass through transfomer blocks and normalize, outputting a (B, T, n_embd) tensor
         x = self.transformer.blocks(x)
-        x = self.transformer.ln(x)
+        x = self.transformer.ln_f(x)
 
         # project back into the space of the vocabulary, "Language Modelling Head"
         logits = self.lm_head(x)

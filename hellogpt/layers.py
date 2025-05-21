@@ -11,14 +11,14 @@ class FeedForward(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
 
-        self.lin = nn.Linear(cfg.n_embd, cfg.n_embd*4)
-        self.act = nn.GELU()
-        self.proj = nn.Linear(cfg.n_embd*4, cfg.n_embd)
+        self.c_fc       = nn.Linear(cfg.n_embd, cfg.n_embd*4)
+        self.act        = nn.GELU()
+        self.c_proj     = nn.Linear(cfg.n_embd*4, cfg.n_embd)
         self.drop_resid = nn.Dropout(cfg.p_drop_resid)
 
     def forward(self, x: torch.Tensor):
-        x = self.act(self.lin(x))
-        x = self.drop_resid(self.proj(x))
+        x = self.act(self.c_fc(x))
+        x = self.drop_resid(self.c_proj(x))
         return x
    
 class MultiHeadAttention(nn.Module):
@@ -36,12 +36,12 @@ class MultiHeadAttention(nn.Module):
         self.head_size      = cfg.n_embd // cfg.n_head
 
         # query, key, value projections for all heads in one layer
-        self.representation = nn.Linear(self.n_embd, 3*self.n_embd)
+        self.c_attn = nn.Linear(self.n_embd, 3*self.n_embd)
         # regularization
         self.drop_attn = nn.Dropout(cfg.p_drop_attn)
         self.drop_resid = nn.Dropout(cfg.p_drop_resid)
         # projection back into residual pathway
-        self.proj = nn.Linear(cfg.n_embd, cfg.n_embd)
+        self.c_proj = nn.Linear(cfg.n_embd, cfg.n_embd)
 
         # causal mask -- attention only goes to tokens in the past 
         self.register_buffer("mask", torch.tril(torch.ones(self.block_size, self.block_size, dtype=bool)).view(1, 1, self.block_size, self.block_size))
@@ -52,7 +52,7 @@ class MultiHeadAttention(nn.Module):
 
         # self.representation has shape (B, T, 3*C)
         # q, k, v have shapes (B, T, C)
-        q, k, v = torch.split(self.representation(x), self.n_embd, dim=-1)
+        q, k, v = torch.split(self.c_attn(x), self.n_embd, dim=-1)
 
         # reshape in this way to get (batch, heads, context/time, head_size)
         # don't do view(B, nh, T, C//nh) directly because this will split up the context dimension in a weird way!
@@ -82,7 +82,7 @@ class MultiHeadAttention(nn.Module):
         out = out.transpose(1,2).contiguous().view(B, T, C)
 
         # project onto residual pathway, apply dropout
-        out = self.drop_resid(self.proj(out))
+        out = self.drop_resid(self.c_proj(out))
 
         return out
 
@@ -92,14 +92,14 @@ class Block(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
 
-        # Layers, with the appropriate skip/residual connections
-        self.ln1    = nn.LayerNorm(cfg.n_embd)
+        # Layers with projections at the end
+        self.ln_1   = nn.LayerNorm(cfg.n_embd)
         self.attn   = MultiHeadAttention(cfg)
-        self.ln2    = nn.LayerNorm(cfg.n_embd)
-        self.ffwd   = FeedForward(cfg)       
+        self.ln_2   = nn.LayerNorm(cfg.n_embd)
+        self.mlp    = FeedForward(cfg)       
 
     def forward(self, x: torch.Tensor):
-        x = x + self.attn(self.ln1(x))
-        x = x + self.ffwd(self.ln2(x))
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.mlp(self.ln_2(x))
         return x
 
